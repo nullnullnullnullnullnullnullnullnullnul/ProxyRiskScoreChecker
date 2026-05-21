@@ -1,29 +1,105 @@
-# Proxy RiskScore Checker
+# ProxyRiskScoreChecker
 
-## Description
-ProxyRiskScoreChecker is a Golang-based command-line utility designed to validate the reliability, anonymity, and security of proxy servers. It verifies the functionality of proxies and subsequently queries the IPQualityScore (IPQS) API to determine their risk or fraud score. Only highly secure and clean proxies (with a risk score of exactly 0) are saved. This tool is invaluable for ensuring your proxy endpoints are not blacklisted, associated with botnets, or otherwise flagged for malicious activity.
+[![ci](https://github.com/nullnullnullnullnullnullnullnullnullnul/ProxyRiskScoreChecker/actions/workflows/ci.yml/badge.svg)](https://github.com/nullnullnullnullnullnullnullnullnullnul/ProxyRiskScoreChecker/actions/workflows/ci.yml)
+[![Go 1.24](https://img.shields.io/badge/Go-1.24-00ADD8.svg)](https://go.dev)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## Public API or Exposed Interface
+CLI tool that queries the [IPQualityScore (IPQS)](https://www.ipqualityscore.com/) reputation API for a batch of HTTP / HTTPS / SOCKS5 proxies. For each proxy, the tool resolves the outbound IP it presents to upstream services, then looks that IP up in the IPQS API and reports the returned `fraud_score`.
 
-This module is designed as a standalone command-line application. Its primary interfaces are file input/output and environment variables.
+## Overview
 
-### Environment Variables
-API_KEY: Your IPQualityScore API key must be set in the environment before execution. 
-Example: export API_KEY="your_api_key_here"
+Intended for operators of a proxy fleet who want to monitor the IPQS reputation of the exit IPs they expose to third-party services. The tool does not manipulate traffic: for each proxy it makes one outbound-IP probe and one IPQS API call, then writes the proxies whose resolved IP returned `fraud_score=0` to the configured output file.
 
-### Interactive Prompts
-Upon running the program, the user is prompted for:
-1. Strictness Level: A value between 0-3 to define how aggressively the IPQS API evaluates the proxy risk. Defaults to 0.
-2. Proxy File Name: The text file containing proxies to be evaluated. Defaults to proxies.txt if left blank.
+External services contacted:
 
-### Input and Output
-Input: A newline-separated text file of proxies. Supported protocols: http, https, socks5. Supports proxy authentication.
-Output (validproxys.txt): Contains the subset of input proxies that successfully connect and route traffic.
-Output (proxies_risk_score_0.txt): Contains the ultimately verified proxies that both connect successfully and yield an IPQS fraud score of 0.
+- `http://ipinfo.io/json` to resolve the outbound IP a proxy presents.
+- `https://ipqualityscore.com/api/json/ip/...` for the reputation lookup (requires an API key).
 
-## Relevant Business Logic
-The application processes proxies in multiple stages:
-1. Parsing and Conversion: Identifies the proxy protocol and authentication details (if any), formatting the string into a standard URL structure. If no protocol is specified, it defaults to http.
-2. Live Validation: Connects through the configured proxy to http://ipinfo.io/json to determine the proxy's active outbound IP address. Proxies that timeout or fail to return a valid IP payload are discarded.
-3. Risk Scoring: For each successful IP address retrieved, the app calls the IPQualityScore API endpoint using the provided API_KEY and strictness level. 
-4. Filtering: Parses the JSON response from IPQS for the fraud_score attribute. Any proxy returning a score greater than 0 is discarded. Only proxies with a fraud_score of 0 are appended to the final output list.
+## Build
+
+```bash
+go build -o build/proxyriskscore ./cmd/proxyriskscore
+```
+
+## Usage
+
+```text
+Usage of proxyriskscore:
+  -api-key string
+        IPQS API key (falls back to $IPQS_API_KEY)
+  -input string
+        input file with one proxy per line (default "proxies.txt")
+  -output string
+        output file for proxies with fraud_score=0 (default "clean.txt")
+  -strictness int
+        IPQS strictness level (0-3)
+  -timeout duration
+        per-request timeout (default 10s)
+```
+
+The IPQS API key is required, either via `--api-key` or the `IPQS_API_KEY` environment variable.
+
+### Supported proxy input formats
+
+One per line. Lines that don't match any of the formats below are skipped with a warning:
+
+- `protocol://user:pass@host:port`
+- `protocol://host:port`
+- `user:pass@host:port` (protocol defaults to `http`)
+- `host:port:user:pass` (proxy-provider list format)
+- `host:port` (protocol defaults to `http`)
+
+Where `protocol` is one of `http`, `https`, `socks5`.
+
+### Example
+
+```bash
+export IPQS_API_KEY="your_key_here"
+./build/proxyriskscore --input proxies.txt --output clean.txt --strictness 1
+```
+
+Sample log output:
+
+```text
+time=2026-05-21T18:00:00Z level=INFO msg="loaded proxies" count=120 file=proxies.txt
+time=2026-05-21T18:00:00Z level=INFO msg=clean proxy=http://10.0.0.1:8080 ip=185.213.155.74
+time=2026-05-21T18:00:01Z level=INFO msg=flagged proxy=http://10.0.0.2:8080 ip=45.33.32.156 score=75
+time=2026-05-21T18:00:02Z level=WARN msg="skip: proxy probe failed" proxy=10.0.0.3:8080 err="do request: context deadline exceeded"
+time=2026-05-21T18:00:10Z level=INFO msg=done clean=94 total=120 output=clean.txt
+```
+
+## Quality
+
+```bash
+gofmt -l .          # formatting check (CI fails on any output)
+go vet ./...        # stdlib static checks
+go test ./...       # unit tests
+golangci-lint run   # extended lint suite
+```
+
+All four are enforced in CI.
+
+## Conventions
+
+- **Commits**: [Conventional Commits](https://www.conventionalcommits.org/) (`feat`, `fix`, `refactor`, `docs`, `chore`, `ci`, `test`, ...).
+- **Branching**: `main` is the only long-lived branch. Changes land on topic branches via PR.
+- **PRs**: CI must be green. Squash merge.
+
+## Roadmap
+
+- Concurrency for the per-proxy lookup loop (currently sequential).
+- Optional JSON / NDJSON output alongside the plain-text `host:port` format.
+- Integration tests covering the `proxy.Validator` path (requires a fixture SOCKS5/HTTP proxy).
+
+## Migration from the prior interactive CLI
+
+This refactor introduces breaking changes relative to the previous interactive version:
+
+- Env var renamed: `API_KEY` is now `IPQS_API_KEY`.
+- No interactive stdin prompts. Use flags.
+- Default output renamed: `proxies_risk_score_0.txt` is now `clean.txt` (override with `--output`).
+- The intermediate `validproxys.txt` file is no longer written; validation now happens in memory only.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
