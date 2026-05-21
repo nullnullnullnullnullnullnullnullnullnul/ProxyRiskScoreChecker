@@ -1,7 +1,7 @@
 # ProxyRiskScoreChecker
 
 [![ci](https://github.com/nullnullnullnullnullnullnullnullnullnul/ProxyRiskScoreChecker/actions/workflows/ci.yml/badge.svg)](https://github.com/nullnullnullnullnullnullnullnullnullnul/ProxyRiskScoreChecker/actions/workflows/ci.yml)
-[![Go 1.24](https://img.shields.io/badge/Go-1.24-00ADD8.svg)](https://go.dev)
+[![Go 1.21+](https://img.shields.io/badge/Go-1.21%2B-00ADD8.svg)](https://go.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 CLI tool that queries the [IPQualityScore (IPQS)](https://www.ipqualityscore.com/) reputation API for a batch of HTTP / HTTPS / SOCKS5 proxies. For each proxy, the tool resolves the outbound IP it presents to upstream services, then looks that IP up in the IPQS API and reports the returned `fraud_score`.
