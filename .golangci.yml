@@ -1,0 +1,35 @@
+run:
+  timeout: 3m
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gofmt
+    - goimports
+    - misspell
+    - unconvert
+    - prealloc
+    - revive
+
+linters-settings:
+  revive:
+    rules:
+      - name: exported
+        severity: warning
+      - name: package-comments
+      - name: var-naming
+      - name: error-strings
+      - name: error-return
+      - name: indent-error-flow
+      - name: blank-imports
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
