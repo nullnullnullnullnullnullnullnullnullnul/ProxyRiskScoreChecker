@@ -1,2 +1,27 @@
-build.sh
+# Build artifacts
+build/
 release/
+dist/
+*.exe
+*.test
+*.out
+coverage.*
+
+# Tool output files
+proxies.txt
+clean.txt
+
+# Editor / IDE
+.vscode/
+.idea/
+.cache/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.envrc
